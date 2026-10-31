@@ -172,7 +172,7 @@ async function freeLookup(w){
  const uniq=(a,kf=norm)=>{const k=new Set();return a.map(x=>String(x||'').trim()).filter(x=>{const n=kf(x);if(!n||n===W||k.has(n))return false;k.add(n);return true})};
  let m=[];
  if(gt.status==='fulfilled'&&Array.isArray(gt.value)){const d=gt.value;m.push(d[0]&&d[0][0]&&d[0][0][0]);if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(x=>m.push(x)))}
- m=uniq(cl(m),tk).slice(0,4);
+ m=uniq(cl(m),tk);const gOk=m.length>0,trAll=m.slice(0,15);m=m.slice(0,4);
  if(!m.length){try{const d=await tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr');m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)});m=uniq(cl(m),tk).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3)}catch(e){}}
  if(!m.length)throw 0;
  let ex='';
@@ -187,7 +187,13 @@ async function freeLookup(w){
  if(mw.status==='fulfilled'&&Array.isArray(mw.value))for(const e of mw.value)if(e&&e.meta){(e.meta.syns||[]).forEach(a=>mS.push(...a));(e.meta.ants||[]).forEach(a=>mA.push(...a))}
  const one=a=>uniq(a).filter(x=>!/\s/.test(x));
  const rank=(lists,n)=>{const c=new Map();lists.forEach(l=>one(l).forEach((x,i)=>{const k=norm(x),o=c.get(k)||{x,n:0,i};o.n++;o.i=Math.min(o.i,i);c.set(k,o)}));return [...c.values()].sort((a,b)=>b.n-a.n||a.i-b.i).slice(0,n).map(o=>o.x)};
- const sy2=rank([mS,xS,dS],4);
+ let sy2=rank([mS,xS,dS],8);
+ if(gOk&&sy2.length>1){
+  const T=new Set(trAll.map(tk));
+  const sc=await Promise.all(sy2.map(async x=>{try{const d=await tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&dt=bd&q='+encodeURIComponent(x));const ts=[d[0]&&d[0][0]&&d[0][0][0]];if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(t=>ts.push(t)));return cl(ts).filter(t=>T.has(tk(t))).length}catch(e){return -1}}));
+  const ok=sy2.map((x,i)=>({x,s:sc[i],i})).filter(o=>o.s>0).sort((a,b)=>b.s-a.s||a.i-b.i).map(o=>o.x);
+  sy2=ok.length?ok.slice(0,4):(sc.every(v=>v<0)?sy2.slice(0,4):sy2.slice(0,2));
+ }else sy2=sy2.slice(0,4);
  let an2=rank([mA,xA],3);
  if(!an2.length)an2=rank([dA],2);
  return{w,m:m.join(', '),ex,syn:sy2.join(', '),ant:an2.join(', ')};
