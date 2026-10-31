@@ -64,9 +64,10 @@ const list=v=>String(v||'').split(/[,;]/).map(norm).filter(Boolean);
 const shuf=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 let tab='list',game=null,flash=false,AI=null,busy=false;
+const lsGem=()=>{try{return localStorage.getItem('kdgem')||''}catch(e){return ''}};
 const lsMw=()=>{try{return localStorage.getItem('kdmw')||''}catch(e){return ''}};
 const lsKey=()=>{try{return localStorage.getItem('kdkey')||''}catch(e){return ''}};
-async function callAI(prompt){
+async function callClaude(prompt){
  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':lsKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-5-5',max_tokens:2000,messages:[{role:'user',content:prompt}]})});
  if(r.status===401||r.status===403)throw{code:'bad_key'};
  if(!r.ok)throw{code:'api'};
@@ -74,7 +75,26 @@ async function callAI(prompt){
  const t=(d.content||[]).map(x=>x.text||'').join('').replace(/```json|```/g,'').trim();
  return JSON.parse(t);
 }
-async function getAI(){return lsKey()?{json:callAI}:null}
+async function callGemini(prompt){
+ const ms=['gemini-3.6-flash','gemini-3.5-flash','gemini-2.5-flash'];
+ for(let i=0;i<ms.length;i++){
+  const model=ms[i],last=i===ms.length-1;
+  const gc={responseMimeType:'application/json'};
+  if(model.startsWith('gemini-2.5')){gc.temperature=0.3;gc.thinkingConfig={thinkingBudget:0}}
+  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(lsGem()),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:gc})});
+  if(!r.ok){
+   const tx=await r.text();
+   if(/api key not valid|API_KEY_INVALID/i.test(tx))throw{code:'bad_key'};
+   if(last)throw{code:r.status===429?'limit':'api'};
+   continue;
+  }
+  const d=await r.json();
+  const t=(((d.candidates||[])[0]||{}).content||{parts:[]}).parts.map(x=>x.text||'').join('').replace(/```json|```/g,'').trim();
+  try{return JSON.parse(t)}catch(e){if(last)throw{code:'api'}}
+ }
+}
+const callAI=p=>lsKey()?callClaude(p):callGemini(p);
+async function getAI(){return (lsKey()||lsGem())?{json:callAI}:null}
 
 const MODES=[
  {id:'mc',n:'Test: kelime → anlam',d:'İngilizce kelimenin Türkçesini seç',ok:w=>w.m,min:2},
@@ -159,7 +179,7 @@ async function addW(){
   }
   save();
   if(!n)msg='Eklenecek yeni kelime bulunamadı (zaten listede olabilir).';
- }catch(e){msg=e&&e.code==='bad_key'?'API anahtarı geçersiz. Ayarlar sekmesinden kontrol et.':'Şu an eklenemedi. İnternetini kontrol edip tekrar dene.'}
+ }catch(e){msg=e&&e.code==='bad_key'?'API anahtarı geçersiz. Ayarlar sekmesinden kontrol et.':e&&e.code==='limit'?'Günlük ücretsiz limit doldu. Yarın tekrar dene.':'Şu an eklenemedi. İnternetini kontrol edip tekrar dene.'}
  busy=false;render();
  if(msg){const s=$('#st');if(s)s.textContent=msg}else{const f=$('#fw');if(f)f.focus()}
 }
@@ -188,11 +208,14 @@ async function freeLookup(w){
  const one=a=>uniq(a).filter(x=>!/\s/.test(x));
  const rank=(lists,n)=>{const c=new Map();lists.forEach(l=>one(l).forEach((x,i)=>{const k=norm(x),o=c.get(k)||{x,n:0,i};o.n++;o.i=Math.min(o.i,i);c.set(k,o)}));return [...c.values()].sort((a,b)=>b.n-a.n||a.i-b.i).slice(0,n).map(o=>o.x)};
  let sy2=rank([mS,xS,dS],8);
- if(gOk&&sy2.length>1){
-  const T=new Set(trAll.map(tk));
-  const sc=await Promise.all(sy2.map(async x=>{try{const d=await tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&dt=bd&q='+encodeURIComponent(x));const ts=[d[0]&&d[0][0]&&d[0][0][0]];if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(t=>ts.push(t)));return cl(ts).filter(t=>T.has(tk(t))).length}catch(e){return -1}}));
-  const ok=sy2.map((x,i)=>({x,s:sc[i],i})).filter(o=>o.s>0).sort((a,b)=>b.s-a.s||a.i-b.i).map(o=>o.x);
-  sy2=ok.length?ok.slice(0,4):(sc.every(v=>v<0)?sy2.slice(0,4):sy2.slice(0,2));
+ if(gOk){
+  const base=new Set(sy2.map(norm));
+  const rs=await Promise.all(trAll.slice(0,3).map(async t=>{try{const d=await tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=tr&tl=en&dt=t&dt=bd&q='+encodeURIComponent(t));const ws=[];if(d[0]&&d[0][0]&&d[0][0][0])ws.push(String(d[0][0][0]).replace(/^to /i,''));if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(x=>ws.push(x)));return ws.slice(0,9)}catch(e){return[]}}));
+  const sc=new Map();
+  rs.forEach(ws=>{const seen=new Set();ws.forEach((x,i)=>{x=String(x).trim();const k=norm(x);if(!k||k===W||/\s/.test(x)||seen.has(k))return;seen.add(k);const o=sc.get(k)||{x,s:0};o.s+=10-i;sc.set(k,o)})});
+  sc.forEach((o,k)=>{if(base.has(k))o.s+=4});
+  const top=[...sc.values()].sort((a,b)=>b.s-a.s).slice(0,4).map(o=>o.x);
+  sy2=top.length?top:sy2.slice(0,4);
  }else sy2=sy2.slice(0,4);
  let an2=rank([mA,xA],3);
  if(!an2.length)an2=rank([dA],2);
@@ -220,9 +243,27 @@ function addManual(){
 }
 function delW(id){if(confirm('Bu kelime silinsin mi?')){S.words=S.words.filter(x=>x.id!==id);save();render()}}
 function viewSet(){
- const has=!!lsKey(),hm=!!lsMw();
- return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Merriam-Webster (isteğe bağlı)</b><div class="hint" style="text-align:left;margin:6px 0 10px">Ücretsiz anahtar, eş ve zıt anlamları iyileştirir. dictionaryapi.com adresinde kayıt olup “Thesaurus” anahtarı al. Durum: <b>'+(hm?'kayıtlı':'yok')+'</b></div><input id="mk" type="password" placeholder="Anahtar" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setMw()">Kaydet</button>'+(hm?'<button class="btn sec" onclick="setMw(true)">Sil</button>':'')+'</div></div><div class="hint">Anthropic anahtarını console.anthropic.com adresinden alabilirsin.</div>';
+ const has=!!lsKey(),hm=!!lsMw(),hg=!!lsGem();
+ return'<h1>Ayarlar</h1><div class="box"><b class="ui">Gemini anahtarı (ücretsiz)</b><div class="hint" style="text-align:left;margin:6px 0 10px">aistudio.google.com adresinde Google hesabınla “Get API key” de, anahtarı buraya yapıştır. Anlamları, eş ve zıt anlamları, örnek cümleleri yapay zekâ hazırlar. Durum: <b>'+(hg?'kayıtlı':'yok')+'</b></div><input id="gk" type="password" placeholder="AIza…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setGem()">Kaydet</button>'+(hg?'<button class="btn sec" onclick="setGem(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Claude’dan toplu ekle</b><div class="hint" style="text-align:left;margin:6px 0 10px">Komutu kopyala, Claude sohbetine yapıştırıp kelimelerini yaz. Verdiği kodu aşağıya yapıştır. Listede olan kelimelerin bilgisi güncellenir.</div><button class="btn sec" style="margin-bottom:8px" onclick="copyPrompt()">Claude için komutu kopyala</button><textarea id="im" placeholder="Claude’un verdiği kodu buraya yapıştır"></textarea><button class="btn" onclick="importW()">İçe aktar</button><div id="ims" class="hint" style="text-align:left;margin:8px 0 0"></div></div><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Merriam-Webster (isteğe bağlı)</b><div class="hint" style="text-align:left;margin:6px 0 10px">Ücretsiz anahtar, eş ve zıt anlamları iyileştirir. dictionaryapi.com adresinde kayıt olup “Thesaurus” anahtarı al. Durum: <b>'+(hm?'kayıtlı':'yok')+'</b></div><input id="mk" type="password" placeholder="Anahtar" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setMw()">Kaydet</button>'+(hm?'<button class="btn sec" onclick="setMw(true)">Sil</button>':'')+'</div></div><div class="hint">Anthropic anahtarını console.anthropic.com adresinden alabilirsin.</div>';
 }
+const say=m=>{const e=$('#ims');if(e)e.textContent=m};
+const PROMPT='Aşağıdaki İngilizce kelimeler için, İngilizce öğrenen bir Türk adına sözlük bilgisi hazırla. Sadece JSON dizisi döndür, başka hiçbir şey yazma. Her kelime için şu biçimi kullan: {"w":"kelime","m":"en yaygın 1-3 Türkçe anlam, virgülle","ex":"kelimeyi aynen içeren, kolay bir İngilizce örnek cümle","syn":"günlük kullanımda yaygın 2-4 eş anlamlı, virgülle","ant":"1-3 zıt anlamlı, virgülle (yoksa boş bırak)"}. Kelimeler: ';
+function copyPrompt(){(navigator.clipboard?navigator.clipboard.writeText(PROMPT):Promise.reject()).then(()=>say('Kopyalandı. Claude’a yapıştır, sonuna kelimelerini yaz.')).catch(()=>say('Kopyalanamadı.'))}
+function importW(){
+ const el=$('#im');let t=el.value.trim().replace(/^```(?:json)?|```$/g,'').trim();
+ if(!t){say('Önce kodu yapıştır.');return}
+ let a;try{a=JSON.parse(t)}catch(e){const i=t.indexOf('['),j=t.lastIndexOf(']');try{a=JSON.parse(t.slice(i,j+1))}catch(e2){say('Kod okunamadı. Claude’un verdiği kodun tamamını yapıştır.');return}}
+ if(!Array.isArray(a)){say('Liste bekleniyordu.');return}
+ let add=0,upd=0;
+ for(const it of a){
+  if(!it||!it.w||!it.m)continue;
+  const f={w:String(it.w).trim(),m:String(it.m).trim(),ex:String(it.ex||'').trim(),syn:String(it.syn||'').trim(),ant:String(it.ant||'').trim()};
+  const o=S.words.find(x=>norm(x.w)===norm(f.w));
+  if(o){Object.assign(o,f);upd++}else{S.words.push(Object.assign({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),s:0},f));add++}
+ }
+ save();el.value='';say(add+' eklendi, '+upd+' güncellendi.');
+}
+function setGem(del){try{if(del)localStorage.removeItem('kdgem');else{const v=$('#gk').value.trim();if(!v)return;localStorage.setItem('kdgem',v)}}catch(e){}AI=null;getAI().then(a=>{AI=a||false;render()})}
 function setMw(del){try{if(del)localStorage.removeItem('kdmw');else{const v=$('#mk').value.trim();if(!v)return;localStorage.setItem('kdmw',v)}}catch(e){}render()}
 function setKey(del){
  try{if(del)localStorage.removeItem('kdkey');else{const v=$('#ky').value.trim();if(!v)return;localStorage.setItem('kdkey',v)}}catch(e){}
