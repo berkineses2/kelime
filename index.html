@@ -132,7 +132,7 @@ function render(){
  const f=a.querySelector('[data-focus]');if(f)f.focus();
 }
 function viewList(){
- let h='<h1>Kelime defteri</h1><div class="box"><input id="fw" placeholder="Bilmediğin kelimeyi yaz" autocapitalize="off" autocomplete="off" autocorrect="off" onkeydown="if(event.key===\'Enter\')addW()"><div id="st" class="hint" style="margin:0 0 8px;text-align:left">'+(AI===false?'Otomatik doldurma için Ayarlar’dan API anahtarı ekle ya da anlamı kendin yaz.':'Anlam, örnek cümle, eş ve zıt anlamlar otomatik gelir. Birden fazla kelimeyi virgülle ayırabilirsin.')+'</div>'+(AI===false?'<input id="fm" placeholder="Türkçe anlamı">':'')+'<button class="btn" id="ab" onclick="addW()">Ekle</button></div>';
+ let h='<h1>Kelime defteri</h1><div class="box"><input id="fw" placeholder="Bilmediğin kelimeyi yaz" autocapitalize="off" autocomplete="off" autocorrect="off" onkeydown="if(event.key===\'Enter\')addW()"><div id="st" class="hint" style="margin:0 0 8px;text-align:left">'+(AI===false?'Ücretsiz sözlük kullanılıyor. Bazı kelimelerde eş anlamlı ya da örnek cümle boş gelebilir. Birden fazla kelimeyi virgülle ayırabilirsin.':'Anlam, örnek cümle, eş ve zıt anlamlar otomatik gelir. Birden fazla kelimeyi virgülle ayırabilirsin.')+'</div>'+''+'<button class="btn" id="ab" onclick="addW()">Ekle</button></div>';
  h+='<h2>'+S.words.length+' kelime</h2>';
  if(!S.words.length)h+='<div class="empty">Henüz kelime yok. Yukarıdan ilk kelimeni ekle.</div>';
  for(const w of [...S.words].reverse()){
@@ -141,7 +141,7 @@ function viewList(){
  return h;
 }
 async function addW(){
- if(AI===false)return addManual();
+ if(AI===false)return addFree();
  const raw=$('#fw').value.trim();if(!raw||busy)return;
  const ws=raw.split(/[,\n]/).map(s=>s.trim()).filter(Boolean).slice(0,10);
  busy=true;$('#ab').disabled=true;$('#st').textContent='Hazırlanıyor…';
@@ -162,6 +162,39 @@ async function addW(){
  busy=false;render();
  if(msg){const s=$('#st');if(s)s.textContent=msg}else{const f=$('#fw');if(f)f.focus()}
 }
+const tj=async u=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);try{const r=await fetch(u,{signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}};
+async function freeLookup(w){
+ const q=encodeURIComponent(w),W=norm(w);
+ const [tr,dic,sy,an]=await Promise.allSettled([tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr'),tj('https://api.dictionaryapi.dev/api/v2/entries/en/'+q),tj('https://api.datamuse.com/words?rel_syn='+q+'&max=4'),tj('https://api.datamuse.com/words?rel_ant='+q+'&max=3')]);
+ const uniq=a=>{const k=new Set();return a.map(x=>String(x||'').trim()).filter(x=>{const n=norm(x);if(!n||n===W||k.has(n))return false;k.add(n);return true})};
+ let m=[];
+ if(tr.status==='fulfilled'){const d=tr.value;m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)})}
+ m=uniq(m).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3);
+ if(!m.length)throw 0;
+ let ex='',syn=[],ant=[];
+ const re=new RegExp('\\b'+reEsc(w)+'\\w*','i');
+ if(dic.status==='fulfilled'&&Array.isArray(dic.value))for(const e of dic.value)for(const mn of e.meanings||[]){
+  syn.push(...(mn.synonyms||[]));ant.push(...(mn.antonyms||[]));
+  for(const df of mn.definitions||[]){syn.push(...(df.synonyms||[]));ant.push(...(df.antonyms||[]));if(!ex&&df.example&&re.test(df.example))ex=df.example}
+ }
+ if(sy.status==='fulfilled'&&Array.isArray(sy.value))syn.unshift(...sy.value.map(x=>x.word));
+ if(an.status==='fulfilled'&&Array.isArray(an.value))ant.unshift(...an.value.map(x=>x.word));
+ return{w,m:m.join(', '),ex,syn:uniq(syn).slice(0,4).join(', '),ant:uniq(ant).slice(0,3).join(', ')};
+}
+async function addFree(){
+ const raw=$('#fw').value.trim();if(!raw||busy)return;
+ const ws=raw.split(/[,\n]/).map(x=>x.trim()).filter(Boolean).slice(0,10);
+ busy=true;$('#ab').disabled=true;$('#st').textContent='Hazırlanıyor…';
+ const miss=[];
+ for(const w of ws){
+  if(S.words.some(x=>norm(x.w)===norm(w)))continue;
+  try{const it=await freeLookup(w);S.words.push(Object.assign({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),s:0},it))}catch(e){miss.push(w)}
+ }
+ save();busy=false;render();
+ const st=$('#st');
+ if(st&&miss.length)st.textContent='Bulunamadı: '+miss.join(', ')+'. Yazımı ve internetini kontrol et.';
+ else{const f=$('#fw');if(f)f.focus()}
+}
 function addManual(){
  const w=$('#fw').value.trim(),m=$('#fm').value.trim();
  if(!w||!m){(w?$('#fm'):$('#fw')).focus();return}
@@ -171,7 +204,7 @@ function addManual(){
 function delW(id){if(confirm('Bu kelime silinsin mi?')){S.words=S.words.filter(x=>x.id!==id);save();render()}}
 function viewSet(){
  const has=!!lsKey();
- return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Kelimeyi yazınca anlam, örnek cümle, eş ve zıt anlamlar otomatik gelsin diye Anthropic API anahtarı gerekir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="hint">Anahtarı console.anthropic.com adresinden alabilirsin.</div>';
+ return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="hint">Anahtarı console.anthropic.com adresinden alabilirsin.</div>';
 }
 function setKey(del){
  try{if(del)localStorage.removeItem('kdkey');else{const v=$('#ky').value.trim();if(!v)return;localStorage.setItem('kdkey',v)}}catch(e){}
