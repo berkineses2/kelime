@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kelime Defteri</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f6b4f">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f3f5f1;--card:#fff;--ink:#17231d;--mut:#66736b;--line:#dde3dc;--acc:#1f6b4f;--accink:#fff;--ok:#2e8b57;--bad:#c4452f;--okbg:#e2f3e8;--badbg:#f9e3de;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121915;--card:#1b2620;--ink:#e8efe9;--mut:#93a39a;--line:#2b3830;--acc:#5fc79a;--accink:#0d1a13;--ok:#6fd49a;--bad:#f08a76;--okbg:#1d3a2a;--badbg:#42241d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121915;--card:#1b2620;--ink:#e8efe9;--mut:#93a39a;--line:#2b3830;--acc:#5fc79a;--accink:#0d1a13;--ok:#6fd49a;--bad:#f08a76;--okbg:#1d3a2a;--badbg:#42241d;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Georgia,"Iowan Old Style",serif;-webkit-text-size-adjust:100%}
+h1,h2,button,input,textarea,.ui{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:560px;margin:0 auto;padding:16px 16px 96px}
+h1{font-size:26px;margin:8px 0 14px;font-family:Georgia,serif;letter-spacing:-.3px}
+h2{font-size:15px;margin:18px 0 8px;color:var(--mut);font-weight:600}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav button{flex:1;border:0;background:none;color:var(--mut);padding:14px 0;font-size:15px;font-weight:600}
+nav button.on{color:var(--acc);box-shadow:inset 0 3px 0 var(--acc)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+input,textarea{width:100%;font-size:16px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin:0 0 8px}
+textarea{resize:vertical;min-height:52px}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.btn{border:0;background:var(--acc);color:var(--accink);padding:13px 16px;border-radius:10px;font-size:16px;font-weight:600;width:100%}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.w{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.w b{font-size:18px}.w small{color:var(--mut);display:block;font-family:system-ui,sans-serif}
+.x{border:0;background:none;color:var(--mut);font-size:20px;padding:0 4px}
+.dots{display:flex;gap:3px;margin-top:6px}.dots i{width:14px;height:5px;border-radius:3px;background:var(--line)}.dots i.f{background:var(--acc)}
+.mode{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;color:var(--ink);font-size:16px}
+.mode span{display:block;color:var(--mut);font-size:13px;font-weight:400}.mode:disabled{opacity:.45}
+.mode b{font-weight:600}
+.q{font-size:28px;text-align:center;margin:26px 8px 8px;line-height:1.3}
+.hint{text-align:center;color:var(--mut);font-family:system-ui,sans-serif;font-size:14px;margin-bottom:18px}
+.opt{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);color:var(--ink);padding:14px;border-radius:10px;font-size:17px;margin-bottom:8px}
+.opt.ok{background:var(--okbg);border-color:var(--ok)}.opt.no{background:var(--badbg);border-color:var(--bad)}
+.fb{padding:12px;border-radius:10px;margin:10px 0;font-family:system-ui,sans-serif}
+.fb.ok{background:var(--okbg);color:var(--ok)}.fb.no{background:var(--badbg);color:var(--bad)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.flip{min-height:200px;text-align:center;display:flex;flex-direction:column;justify-content:center;width:100%;color:var(--ink);font-size:28px}
+.flip em{font-size:16px;color:var(--mut)}
+.big{font-size:48px;text-align:center;margin:30px 0 4px;font-family:Georgia,serif}
+.empty{color:var(--mut);text-align:center;padding:30px 10px;font-family:system-ui,sans-serif}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav><button id="t-list">Kelimeler</button><button id="t-study">Çalış</button><button id="t-set">Ayarlar</button></nav>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S={words:[]};
+try{const d=JSON.parse(localStorage.getItem('kd')||'null');if(d&&d.words)S=d}catch(e){}
+const save=()=>{try{localStorage.setItem('kd',JSON.stringify(S))}catch(e){}};
+const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+const list=v=>String(v||'').split(/[,;]/).map(norm).filter(Boolean);
+const shuf=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+let tab='list',game=null,flash=false,AI=null,busy=false;
+const lsKey=()=>{try{return localStorage.getItem('kdkey')||''}catch(e){return ''}};
+async function callAI(prompt){
+ const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':lsKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-5-5',max_tokens:2000,messages:[{role:'user',content:prompt}]})});
+ if(r.status===401||r.status===403)throw{code:'bad_key'};
+ if(!r.ok)throw{code:'api'};
+ const d=await r.json();
+ const t=(d.content||[]).map(x=>x.text||'').join('').replace(/```json|```/g,'').trim();
+ return JSON.parse(t);
+}
+async function getAI(){return lsKey()?{json:callAI}:null}
+
+const MODES=[
+ {id:'mc',n:'Test: kelime → anlam',d:'İngilizce kelimenin Türkçesini seç',ok:w=>w.m,min:2},
+ {id:'rev',n:'Test: anlam → kelime',d:'Türkçesi verilen kelimeyi seç',ok:w=>w.m,min:2},
+ {id:'type',n:'Yazarak hatırla',d:'Türkçesini gör, İngilizcesini yaz',ok:w=>w.m,min:1},
+ {id:'cloze',n:'Boşluk doldurma',d:'Örnek cümledeki boşluğu doldur',ok:w=>w.ex&&clozeOf(w),min:1},
+ {id:'syn',n:'Eş anlamlı',d:'Eş anlamlısını yaz',ok:w=>list(w.syn).length,min:1},
+ {id:'ant',n:'Zıt anlamlı',d:'Zıt anlamlısını yaz',ok:w=>list(w.ant).length,min:1},
+ {id:'flash',n:'Kartlar',d:'Kartı çevir, bildin mi işaretle',ok:w=>w.m,min:1}
+];
+function clozeOf(w){const re=new RegExp('\\b'+reEsc(w.w)+'\\w*','i');const m=w.ex.match(re);return m?{re,hit:m[0]}:null}
+const elig=m=>S.words.filter(m.ok);
+
+function mk(mode,w){
+ const others=()=>shuf(S.words.filter(x=>x.id!==w.id));
+ if(mode==='mc'||mode==='rev'){
+  const key=mode==='mc'?'m':'w';
+  const opts=[w[key]];
+  for(const o of others()){if(opts.length>=4)break;if(!opts.includes(o[key]))opts.push(o[key])}
+  return{w,type:'choice',prompt:mode==='mc'?w.w:w.m,hint:mode==='mc'?'Türkçesi nedir?':'İngilizcesi nedir?',options:shuf(opts),correct:w[key]};
+ }
+ if(mode==='type')return{w,type:'input',prompt:w.m,hint:'İngilizcesini yaz',answers:[norm(w.w)],show:w.w};
+ if(mode==='cloze'){const c=clozeOf(w);return{w,type:'input',prompt:w.ex.replace(c.re,'_____'),hint:'Boşluğa gelen kelime ('+w.m+')',answers:[norm(w.w),norm(c.hit)],show:c.hit}}
+ if(mode==='syn'||mode==='ant'){const a=list(w[mode]);return{w,type:'input',prompt:w.w,hint:mode==='syn'?'Eş anlamlısını yaz':'Zıt anlamlısını yaz',answers:a,show:a.join(', ')}}
+ return{w,type:'flash',prompt:w.w}
+}
+function start(id){
+ const m=MODES.find(x=>x.id===id);
+ const pool=elig(m).map(w=>[(w.s||0)+Math.random()*2,w]).sort((a,b)=>a[0]-b[0]).slice(0,10).map(p=>p[1]);
+ game={mode:id,qs:pool.map(w=>mk(id,w)),i:0,right:0,done:false,flipped:false,ans:null};
+ tab='play';render();
+}
+function grade(w,good){
+ const x=S.words.find(k=>k.id===w.id);if(!x)return;
+ x.s=Math.max(0,Math.min(5,(x.s||0)+(good?1:-1)));save();
+}
+function answer(val){
+ const q=game.qs[game.i];if(game.ans)return;
+ let good;
+ if(q.type==='choice')good=val===q.correct;
+ else good=q.answers.includes(norm(val));
+ game.ans={val,good};if(good)game.right++;grade(q.w,good);render();
+}
+function nextQ(){game.i++;game.ans=null;game.flipped=false;if(game.i>=game.qs.length)game.done=true;render()}
+function flashMark(good){const q=game.qs[game.i];if(good)game.right++;grade(q.w,good);nextQ()}
+
+function render(){
+ $('#t-list').className=tab==='list'?'on':'';
+ $('#t-study').className=(tab==='study'||tab==='play')?'on':'';
+ $('#t-set').className=tab==='set'?'on':'';
+ const a=$('#app');
+ if(tab==='list')a.innerHTML=viewList();
+ else if(tab==='set')a.innerHTML=viewSet();
+ else if(tab==='study')a.innerHTML=viewStudy();
+ else a.innerHTML=viewPlay();
+ const f=a.querySelector('[data-focus]');if(f)f.focus();
+}
+function viewList(){
+ let h='<h1>Kelime defteri</h1><div class="box"><input id="fw" placeholder="Bilmediğin kelimeyi yaz" autocapitalize="off" autocomplete="off" autocorrect="off" onkeydown="if(event.key===\'Enter\')addW()"><div id="st" class="hint" style="margin:0 0 8px;text-align:left">'+(AI===false?'Otomatik doldurma için Ayarlar’dan API anahtarı ekle ya da anlamı kendin yaz.':'Anlam, örnek cümle, eş ve zıt anlamlar otomatik gelir. Birden fazla kelimeyi virgülle ayırabilirsin.')+'</div>'+(AI===false?'<input id="fm" placeholder="Türkçe anlamı">':'')+'<button class="btn" id="ab" onclick="addW()">Ekle</button></div>';
+ h+='<h2>'+S.words.length+' kelime</h2>';
+ if(!S.words.length)h+='<div class="empty">Henüz kelime yok. Yukarıdan ilk kelimeni ekle.</div>';
+ for(const w of [...S.words].reverse()){
+  h+='<div class="box"><div class="w"><div><b>'+esc(w.w)+'</b><small>'+esc(w.m)+'</small>'+(w.ex?'<small><i>'+esc(w.ex)+'</i></small>':'')+(w.syn?'<small>Eş: '+esc(w.syn)+'</small>':'')+(w.ant?'<small>Zıt: '+esc(w.ant)+'</small>':'')+'</div><button class="x" aria-label="Sil" onclick="delW(\''+w.id+'\')">×</button></div><div class="dots" title="Öğrenme seviyesi">'+[1,2,3,4,5].map(n=>'<i class="'+((w.s||0)>=n?'f':'')+'"></i>').join('')+'</div></div>';
+ }
+ return h;
+}
+async function addW(){
+ if(AI===false)return addManual();
+ const raw=$('#fw').value.trim();if(!raw||busy)return;
+ const ws=raw.split(/[,\n]/).map(s=>s.trim()).filter(Boolean).slice(0,10);
+ busy=true;$('#ab').disabled=true;$('#st').textContent='Hazırlanıyor…';
+ let msg='';
+ try{
+  if(!AI)AI=await getAI();
+  if(!AI){AI=false;busy=false;render();return}
+  const r=await AI.json('You are a dictionary for Turkish learners of English. For each English word or phrase in this JSON list, return a JSON array of objects with keys: w (the word, spelling corrected if misspelled), m (1 to 3 most common Turkish meanings, comma separated, short), ex (one simple natural English sentence that contains the exact word w, same spelling), syn (up to 4 English synonyms, comma separated, empty string if none), ant (up to 3 English antonyms, comma separated, empty string if none). Output only the JSON array, in the same order. List: '+JSON.stringify(ws));
+  let n=0;
+  for(const it of (Array.isArray(r)?r:[])){
+   if(!it||!it.w||!it.m)continue;
+   if(S.words.some(x=>norm(x.w)===norm(it.w)))continue;
+   S.words.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),w:String(it.w).trim(),m:String(it.m).trim(),ex:String(it.ex||'').trim(),syn:String(it.syn||'').trim(),ant:String(it.ant||'').trim(),s:0});n++;
+  }
+  save();
+  if(!n)msg='Eklenecek yeni kelime bulunamadı (zaten listede olabilir).';
+ }catch(e){msg=e&&e.code==='bad_key'?'API anahtarı geçersiz. Ayarlar sekmesinden kontrol et.':'Şu an eklenemedi. İnternetini kontrol edip tekrar dene.'}
+ busy=false;render();
+ if(msg){const s=$('#st');if(s)s.textContent=msg}else{const f=$('#fw');if(f)f.focus()}
+}
+function addManual(){
+ const w=$('#fw').value.trim(),m=$('#fm').value.trim();
+ if(!w||!m){(w?$('#fm'):$('#fw')).focus();return}
+ S.words.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),w,m,ex:'',syn:'',ant:'',s:0});
+ save();render();$('#fw').focus();
+}
+function delW(id){if(confirm('Bu kelime silinsin mi?')){S.words=S.words.filter(x=>x.id!==id);save();render()}}
+function viewSet(){
+ const has=!!lsKey();
+ return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Kelimeyi yazınca anlam, örnek cümle, eş ve zıt anlamlar otomatik gelsin diye Anthropic API anahtarı gerekir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="hint">Anahtarı console.anthropic.com adresinden alabilirsin.</div>';
+}
+function setKey(del){
+ try{if(del)localStorage.removeItem('kdkey');else{const v=$('#ky').value.trim();if(!v)return;localStorage.setItem('kdkey',v)}}catch(e){}
+ AI=null;getAI().then(a=>{AI=a||false;render()});
+}
+function viewStudy(){
+ if(!S.words.length)return'<h1>Çalış</h1><div class="empty">Önce Kelimeler sekmesinden kelime ekle.</div>';
+ let h='<h1>Çalış</h1>';
+ for(const m of MODES){const n=elig(m).length,off=n<m.min;
+  h+='<button class="mode" '+(off?'disabled':'')+' onclick="start(\''+m.id+'\')"><div><b>'+m.n+'</b><span>'+(off?(m.min>1?'En az 2 kelime gerekli':'Uygun kelime yok'):m.d)+'</span></div><span>'+n+'</span></button>';}
+ return h+'<div class="hint">Az bildiğin kelimeler daha sık gelir.</div>';
+}
+function viewPlay(){
+ const g=game,tot=g.qs.length;
+ if(g.done){
+  return'<div class="big">'+g.right+' / '+tot+'</div><div class="hint">'+(g.right===tot?'Hepsi doğru!':'Yanlışlar bir sonraki turda daha sık gelecek.')+'</div><div class="row"><button class="btn sec" onclick="tab=\'study\';render()">Menü</button><button class="btn" onclick="start(game.mode)">Yeni tur</button></div>';
+ }
+ const q=g.qs[g.i];
+ let h='<div class="bar"><i style="width:'+(g.i/tot*100)+'%"></i></div><div class="hint" style="margin:8px 0 0">'+(g.i+1)+' / '+tot+'</div>';
+ if(q.type==='flash'){
+  h+='<div class="box" style="margin-top:14px"><button class="flip" style="background:none;border:0" onclick="game.flipped=true;render()">'+esc(q.prompt)+(g.flipped?'<em>'+esc(q.w.m)+'</em>'+(q.w.ex?'<em style="margin-top:10px">'+esc(q.w.ex)+'</em>':''):'<em>Çevirmek için dokun</em>')+'</button></div>';
+  if(g.flipped)h+='<div class="row"><button class="btn sec" onclick="flashMark(false)">Bilmiyordum</button><button class="btn" onclick="flashMark(true)">Biliyordum</button></div>';
+  return h;
+ }
+ h+='<div class="q">'+esc(q.prompt)+'</div><div class="hint">'+esc(q.hint)+'</div>';
+ if(q.type==='choice'){
+  q.options.forEach((o,i)=>{let c='opt';if(g.ans){if(o===q.correct)c+=' ok';else if(o===g.ans.val)c+=' no'}
+   h+='<button class="'+c+'" '+(g.ans?'disabled':'')+' onclick="answer(game.qs[game.i].options['+i+'])">'+esc(o)+'</button>'});
+ }else if(!g.ans){
+  h+='<input id="in" data-focus autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Cevabın" onkeydown="if(event.key===\'Enter\')answer(this.value)"><button class="btn" onclick="answer($(\'#in\').value)">Kontrol et</button>';
+ }
+ if(g.ans){
+  h+='<div class="fb '+(g.ans.good?'ok':'no')+'">'+(g.ans.good?'Doğru!':'Yanlış. Doğrusu: <b>'+esc(q.type==='choice'?q.correct:q.show)+'</b>')+'</div><button class="btn" data-focus onclick="nextQ()">'+(g.i+1>=tot?'Bitir':'Sonraki')+'</button>';
+ }
+ return h;
+}
+$('#t-list').onclick=()=>{tab='list';render()};
+$('#t-study').onclick=()=>{tab='study';render()};
+$('#t-set').onclick=()=>{tab='set';render()};
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+getAI().then(a=>{AI=a||false;if(AI===false&&tab==='list'&&!busy&&!$('#fw').value)render()});
+</script>
+</body>
+</html>
