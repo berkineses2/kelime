@@ -167,27 +167,34 @@ const tj=async u=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),9000
 async function freeLookup(w){
  const q=encodeURIComponent(w),W=norm(w);
  const mwk=lsMw();
- const [gt,dic,sy,an,mw]=await Promise.allSettled([tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&dt=bd&q='+q),tj('https://api.dictionaryapi.dev/api/v2/entries/en/'+q),tj('https://api.datamuse.com/words?rel_syn='+q+'&max=4'),tj('https://api.datamuse.com/words?rel_ant='+q+'&max=3'),mwk?tj('https://www.dictionaryapi.com/api/v3/references/thesaurus/json/'+q+'?key='+encodeURIComponent(mwk)):Promise.reject(0)]);
- const uniq=a=>{const k=new Set();return a.map(x=>String(x||'').trim()).filter(x=>{const n=norm(x);if(!n||n===W||k.has(n))return false;k.add(n);return true})};
+ const [gt,dic,sy,an,mw]=await Promise.allSettled([tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&dt=bd&q='+q),tj('https://api.dictionaryapi.dev/api/v2/entries/en/'+q),tj('https://api.datamuse.com/words?rel_syn='+q+'&max=8'),tj('https://api.datamuse.com/words?rel_ant='+q+'&max=3'),mwk?tj('https://www.dictionaryapi.com/api/v3/references/thesaurus/json/'+q+'?key='+encodeURIComponent(mwk)):Promise.reject(0)]);
+ const tk=x=>String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();const cl=a=>a.map(x=>String(x||'').replace(/\s*\([^)]*\)/g,'').trim());
+ const uniq=(a,kf=norm)=>{const k=new Set();return a.map(x=>String(x||'').trim()).filter(x=>{const n=kf(x);if(!n||n===W||k.has(n))return false;k.add(n);return true})};
  let m=[];
  if(gt.status==='fulfilled'&&Array.isArray(gt.value)){const d=gt.value;m.push(d[0]&&d[0][0]&&d[0][0][0]);if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(x=>m.push(x)))}
- m=uniq(m).slice(0,4);
- if(!m.length){try{const d=await tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr');m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)});m=uniq(m).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3)}catch(e){}}
+ m=uniq(cl(m),tk).slice(0,4);
+ if(!m.length){try{const d=await tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr');m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)});m=uniq(cl(m),tk).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3)}catch(e){}}
  if(!m.length)throw 0;
- let ex='',syn=[],ant=[];
+ let ex='';
  const re=new RegExp('\\b'+reEsc(w)+'\\w*','i');
+ const dS=[],dA=[],xS=[],xA=[],mS=[],mA=[];
  if(dic.status==='fulfilled'&&Array.isArray(dic.value))for(const e of dic.value)for(const mn of e.meanings||[]){
-  syn.push(...(mn.synonyms||[]));ant.push(...(mn.antonyms||[]));
-  for(const df of mn.definitions||[]){syn.push(...(df.synonyms||[]));ant.push(...(df.antonyms||[]));if(!ex&&df.example&&re.test(df.example))ex=df.example}
+  dS.push(...(mn.synonyms||[]));dA.push(...(mn.antonyms||[]));
+  for(const df of mn.definitions||[]){dS.push(...(df.synonyms||[]));dA.push(...(df.antonyms||[]));if(!ex&&df.example&&re.test(df.example))ex=df.example}
  }
- if(sy.status==='fulfilled'&&Array.isArray(sy.value))syn.unshift(...sy.value.map(x=>x.word));
- if(an.status==='fulfilled'&&Array.isArray(an.value))ant.unshift(...an.value.map(x=>x.word));
- if(mw.status==='fulfilled'&&Array.isArray(mw.value)){const ms=[],ma=[];for(const e of mw.value)if(e&&e.meta){(e.meta.syns||[]).forEach(a=>ms.push(...a));(e.meta.ants||[]).forEach(a=>ma.push(...a))}syn.unshift(...ms);ant.unshift(...ma)}
- return{w,m:m.join(', '),ex,syn:uniq(syn).slice(0,4).join(', '),ant:uniq(ant).slice(0,3).join(', ')};
+ if(sy.status==='fulfilled'&&Array.isArray(sy.value))xS.push(...sy.value.map(x=>x.word));
+ if(an.status==='fulfilled'&&Array.isArray(an.value))xA.push(...an.value.map(x=>x.word));
+ if(mw.status==='fulfilled'&&Array.isArray(mw.value))for(const e of mw.value)if(e&&e.meta){(e.meta.syns||[]).forEach(a=>mS.push(...a));(e.meta.ants||[]).forEach(a=>mA.push(...a))}
+ const one=a=>uniq(a).filter(x=>!/\s/.test(x));
+ const rank=(lists,n)=>{const c=new Map();lists.forEach(l=>one(l).forEach((x,i)=>{const k=norm(x),o=c.get(k)||{x,n:0,i};o.n++;o.i=Math.min(o.i,i);c.set(k,o)}));return [...c.values()].sort((a,b)=>b.n-a.n||a.i-b.i).slice(0,n).map(o=>o.x)};
+ const sy2=rank([mS,xS,dS],4);
+ let an2=rank([mA,xA],3);
+ if(!an2.length)an2=rank([dA],2);
+ return{w,m:m.join(', '),ex,syn:sy2.join(', '),ant:an2.join(', ')};
 }
 async function addFree(){
  const raw=$('#fw').value.trim();if(!raw||busy)return;
- const ws=raw.split(/[,\n]/).map(x=>x.trim()).filter(Boolean).slice(0,10);
+ const ws=raw.split(/[,\n]/).map(x=>x.replace(/[^\p{L}\s'’-]/gu,'').trim()).filter(Boolean).slice(0,10);
  busy=true;$('#ab').disabled=true;$('#st').textContent='Hazırlanıyor…';
  const miss=[];
  for(const w of ws){
