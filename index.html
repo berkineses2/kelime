@@ -26,6 +26,7 @@ nav button.on{color:var(--acc);box-shadow:inset 0 3px 0 var(--acc)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
 input,textarea{width:100%;font-size:16px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin:0 0 8px}
 textarea{resize:vertical;min-height:52px}
+select{width:100%;font-size:16px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin:0 0 8px}
 input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .btn{border:0;background:var(--acc);color:var(--accink);padding:13px 16px;border-radius:10px;font-size:16px;font-weight:600;width:100%}
 .btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
@@ -65,6 +66,8 @@ const shuf=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 let tab='list',game=null,flash=false,AI=null,busy=false;
 const lsGem=()=>{try{return localStorage.getItem('kdgem')||''}catch(e){return ''}};
+const lsGq=()=>{try{return localStorage.getItem('kdgq')||'fast'}catch(e){return 'fast'}};
+const setGq=v=>{try{localStorage.setItem('kdgq',v)}catch(e){}};
 const lsMw=()=>{try{return localStorage.getItem('kdmw')||''}catch(e){return ''}};
 const lsKey=()=>{try{return localStorage.getItem('kdkey')||''}catch(e){return ''}};
 async function callClaude(prompt){
@@ -76,7 +79,9 @@ async function callClaude(prompt){
  return JSON.parse(t);
 }
 async function callGemini(prompt){
- const ms=['gemini-3.6-flash','gemini-3.5-flash','gemini-2.5-flash'];
+ let ms=lsGq()==='best'?['gemini-3.6-flash','gemini-3.5-flash','gemini-2.5-flash']:['gemini-3.5-flash-lite','gemini-3.6-flash','gemini-2.5-flash'];
+ const bad=(window.__bad=window.__bad||new Set());
+ const okm=ms.filter(x=>!bad.has(x));if(okm.length)ms=okm;
  for(let i=0;i<ms.length;i++){
   const model=ms[i],last=i===ms.length-1;
   const gc={responseMimeType:'application/json'};
@@ -85,7 +90,7 @@ async function callGemini(prompt){
   if(!r.ok){
    const tx=await r.text();
    if(/api key not valid|API_KEY_INVALID/i.test(tx))throw{code:'bad_key'};
-   if(last)throw{code:r.status===429?'limit':'api'};
+   bad.add(model);if(last)throw{code:r.status===429?'limit':'api'};
    continue;
   }
   const d=await r.json();
@@ -243,8 +248,8 @@ function addManual(){
 }
 function delW(id){if(confirm('Bu kelime silinsin mi?')){S.words=S.words.filter(x=>x.id!==id);save();render()}}
 function viewSet(){
- const has=!!lsKey(),hm=!!lsMw(),hg=!!lsGem();
- return'<h1>Ayarlar</h1><div class="box"><b class="ui">Gemini anahtarı (ücretsiz)</b><div class="hint" style="text-align:left;margin:6px 0 10px">aistudio.google.com adresinde Google hesabınla “Get API key” de, anahtarı buraya yapıştır. Anlamları, eş ve zıt anlamları, örnek cümleleri yapay zekâ hazırlar. Durum: <b>'+(hg?'kayıtlı':'yok')+'</b></div><input id="gk" type="password" placeholder="AIza…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setGem()">Kaydet</button>'+(hg?'<button class="btn sec" onclick="setGem(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Claude’dan toplu ekle</b><div class="hint" style="text-align:left;margin:6px 0 10px">Komutu kopyala, Claude sohbetine yapıştırıp kelimelerini yaz. Verdiği kodu aşağıya yapıştır. Listede olan kelimelerin bilgisi güncellenir.</div><button class="btn sec" style="margin-bottom:8px" onclick="copyPrompt()">Claude için komutu kopyala</button><textarea id="im" placeholder="Claude’un verdiği kodu buraya yapıştır"></textarea><button class="btn" onclick="importW()">İçe aktar</button><div id="ims" class="hint" style="text-align:left;margin:8px 0 0"></div></div><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Merriam-Webster (isteğe bağlı)</b><div class="hint" style="text-align:left;margin:6px 0 10px">Ücretsiz anahtar, eş ve zıt anlamları iyileştirir. dictionaryapi.com adresinde kayıt olup “Thesaurus” anahtarı al. Durum: <b>'+(hm?'kayıtlı':'yok')+'</b></div><input id="mk" type="password" placeholder="Anahtar" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setMw()">Kaydet</button>'+(hm?'<button class="btn sec" onclick="setMw(true)">Sil</button>':'')+'</div></div><div class="hint">Anthropic anahtarını console.anthropic.com adresinden alabilirsin.</div>';
+ const has=!!lsKey(),hm=!!lsMw(),hg=!!lsGem(),gq=lsGq();
+ return'<h1>Ayarlar</h1><div class="box"><b class="ui">Gemini anahtarı (ücretsiz)</b><div class="hint" style="text-align:left;margin:6px 0 10px">aistudio.google.com adresinde Google hesabınla “Get API key” de, anahtarı buraya yapıştır. Anlamları, eş ve zıt anlamları, örnek cümleleri yapay zekâ hazırlar. Durum: <b>'+(hg?'kayıtlı':'yok')+'</b></div><input id="gk" type="password" placeholder="AIza…" autocapitalize="off" autocomplete="off"><select id="gm" onchange="setGq(this.value)"><option value="fast"'+(gq==='best'?'':' selected')+'>Hızlı model</option><option value="best"'+(gq==='best'?' selected':'')+'>Daha kaliteli model (yavaş)</option></select><div class="row"><button class="btn" onclick="setGem()">Kaydet</button>'+(hg?'<button class="btn sec" onclick="setGem(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Claude’dan toplu ekle</b><div class="hint" style="text-align:left;margin:6px 0 10px">Komutu kopyala, Claude sohbetine yapıştırıp kelimelerini yaz. Verdiği kodu aşağıya yapıştır. Listede olan kelimelerin bilgisi güncellenir.</div><button class="btn sec" style="margin-bottom:8px" onclick="copyPrompt()">Claude için komutu kopyala</button><textarea id="im" placeholder="Claude’un verdiği kodu buraya yapıştır"></textarea><button class="btn" onclick="importW()">İçe aktar</button><div id="ims" class="hint" style="text-align:left;margin:8px 0 0"></div></div><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Merriam-Webster (isteğe bağlı)</b><div class="hint" style="text-align:left;margin:6px 0 10px">Ücretsiz anahtar, eş ve zıt anlamları iyileştirir. dictionaryapi.com adresinde kayıt olup “Thesaurus” anahtarı al. Durum: <b>'+(hm?'kayıtlı':'yok')+'</b></div><input id="mk" type="password" placeholder="Anahtar" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setMw()">Kaydet</button>'+(hm?'<button class="btn sec" onclick="setMw(true)">Sil</button>':'')+'</div></div><div class="hint">Anthropic anahtarını console.anthropic.com adresinden alabilirsin.</div>';
 }
 const say=m=>{const e=$('#ims');if(e)e.textContent=m};
 const PROMPT='Aşağıdaki İngilizce kelimeler için, İngilizce öğrenen bir Türk adına sözlük bilgisi hazırla. Sadece JSON dizisi döndür, başka hiçbir şey yazma. Her kelime için şu biçimi kullan: {"w":"kelime","m":"en yaygın 1-3 Türkçe anlam, virgülle","ex":"kelimeyi aynen içeren, kolay bir İngilizce örnek cümle","syn":"günlük kullanımda yaygın 2-4 eş anlamlı, virgülle","ant":"1-3 zıt anlamlı, virgülle (yoksa boş bırak)"}. Kelimeler: ';
