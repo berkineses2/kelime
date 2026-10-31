@@ -64,6 +64,7 @@ const list=v=>String(v||'').split(/[,;]/).map(norm).filter(Boolean);
 const shuf=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 let tab='list',game=null,flash=false,AI=null,busy=false;
+const lsMw=()=>{try{return localStorage.getItem('kdmw')||''}catch(e){return ''}};
 const lsKey=()=>{try{return localStorage.getItem('kdkey')||''}catch(e){return ''}};
 async function callAI(prompt){
  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':lsKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-5-5',max_tokens:2000,messages:[{role:'user',content:prompt}]})});
@@ -165,11 +166,13 @@ async function addW(){
 const tj=async u=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);try{const r=await fetch(u,{signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}};
 async function freeLookup(w){
  const q=encodeURIComponent(w),W=norm(w);
- const [tr,dic,sy,an]=await Promise.allSettled([tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr'),tj('https://api.dictionaryapi.dev/api/v2/entries/en/'+q),tj('https://api.datamuse.com/words?rel_syn='+q+'&max=4'),tj('https://api.datamuse.com/words?rel_ant='+q+'&max=3')]);
+ const mwk=lsMw();
+ const [gt,dic,sy,an,mw]=await Promise.allSettled([tj('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&dt=bd&q='+q),tj('https://api.dictionaryapi.dev/api/v2/entries/en/'+q),tj('https://api.datamuse.com/words?rel_syn='+q+'&max=4'),tj('https://api.datamuse.com/words?rel_ant='+q+'&max=3'),mwk?tj('https://www.dictionaryapi.com/api/v3/references/thesaurus/json/'+q+'?key='+encodeURIComponent(mwk)):Promise.reject(0)]);
  const uniq=a=>{const k=new Set();return a.map(x=>String(x||'').trim()).filter(x=>{const n=norm(x);if(!n||n===W||k.has(n))return false;k.add(n);return true})};
  let m=[];
- if(tr.status==='fulfilled'){const d=tr.value;m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)})}
- m=uniq(m).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3);
+ if(gt.status==='fulfilled'&&Array.isArray(gt.value)){const d=gt.value;m.push(d[0]&&d[0][0]&&d[0][0][0]);if(Array.isArray(d[1]))d[1].forEach(p=>(p[1]||[]).forEach(x=>m.push(x)))}
+ m=uniq(m).slice(0,4);
+ if(!m.length){try{const d=await tj('https://api.mymemory.translated.net/get?q='+q+'&langpair=en|tr');m.push(d.responseData&&d.responseData.translatedText);(d.matches||[]).forEach(x=>{if(norm(x.segment)===W)m.push(x.translation)});m=uniq(m).filter(x=>!/[<>]|mymemory|http/i.test(x)).slice(0,3)}catch(e){}}
  if(!m.length)throw 0;
  let ex='',syn=[],ant=[];
  const re=new RegExp('\\b'+reEsc(w)+'\\w*','i');
@@ -179,6 +182,7 @@ async function freeLookup(w){
  }
  if(sy.status==='fulfilled'&&Array.isArray(sy.value))syn.unshift(...sy.value.map(x=>x.word));
  if(an.status==='fulfilled'&&Array.isArray(an.value))ant.unshift(...an.value.map(x=>x.word));
+ if(mw.status==='fulfilled'&&Array.isArray(mw.value)){const ms=[],ma=[];for(const e of mw.value)if(e&&e.meta){(e.meta.syns||[]).forEach(a=>ms.push(...a));(e.meta.ants||[]).forEach(a=>ma.push(...a))}syn.unshift(...ms);ant.unshift(...ma)}
  return{w,m:m.join(', '),ex,syn:uniq(syn).slice(0,4).join(', '),ant:uniq(ant).slice(0,3).join(', ')};
 }
 async function addFree(){
@@ -203,9 +207,10 @@ function addManual(){
 }
 function delW(id){if(confirm('Bu kelime silinsin mi?')){S.words=S.words.filter(x=>x.id!==id);save();render()}}
 function viewSet(){
- const has=!!lsKey();
- return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="hint">Anahtarı console.anthropic.com adresinden alabilirsin.</div>';
+ const has=!!lsKey(),hm=!!lsMw();
+ return'<h1>Ayarlar</h1><div class="box"><b class="ui">Otomatik doldurma</b><div class="hint" style="text-align:left;margin:6px 0 10px">Anahtar eklemezsen ücretsiz sözlük servisleri kullanılır. Anthropic API anahtarı eklersen anlamlar ve örnek cümleler çok daha iyi gelir. Anahtar yalnızca bu telefonda saklanır. Durum: <b>'+(has?'kayıtlı':'yok')+'</b></div><input id="ky" type="password" placeholder="sk-ant-…" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setKey()">Kaydet</button>'+(has?'<button class="btn sec" onclick="setKey(true)">Sil</button>':'')+'</div></div><div class="box"><b class="ui">Merriam-Webster (isteğe bağlı)</b><div class="hint" style="text-align:left;margin:6px 0 10px">Ücretsiz anahtar, eş ve zıt anlamları iyileştirir. dictionaryapi.com adresinde kayıt olup “Thesaurus” anahtarı al. Durum: <b>'+(hm?'kayıtlı':'yok')+'</b></div><input id="mk" type="password" placeholder="Anahtar" autocapitalize="off" autocomplete="off"><div class="row"><button class="btn" onclick="setMw()">Kaydet</button>'+(hm?'<button class="btn sec" onclick="setMw(true)">Sil</button>':'')+'</div></div><div class="hint">Anthropic anahtarını console.anthropic.com adresinden alabilirsin.</div>';
 }
+function setMw(del){try{if(del)localStorage.removeItem('kdmw');else{const v=$('#mk').value.trim();if(!v)return;localStorage.setItem('kdmw',v)}}catch(e){}render()}
 function setKey(del){
  try{if(del)localStorage.removeItem('kdkey');else{const v=$('#ky').value.trim();if(!v)return;localStorage.setItem('kdkey',v)}}catch(e){}
  AI=null;getAI().then(a=>{AI=a||false;render()});
